@@ -1,4 +1,4 @@
-import { MarketType } from '@/types';
+import { DGPlayerPrediction, DGTournament } from '@/types';
 
 const DG_BASE = 'https://feeds.datagolf.com';
 
@@ -8,77 +8,69 @@ function getApiKey(): string {
   return key;
 }
 
-export interface DGOutrightPlayer {
-  dg_id: number;
-  player_name: string;
-  country: string;
-  // Model probabilities (decimal, e.g. 0.08 = 8%)
-  baseline_history_fit: Record<string, number>;
-  // Sportsbook odds (American format or implied probability)
-  books: Record<string, Record<string, number>>;
-}
-
-export interface DGOutrightResponse {
-  event_name: string;
-  last_updated: string;
-  market: string;
-  books: string[];
-  players: DGOutrightPlayer[];
-}
-
 /**
- * Fetch outrights from DataGolf Betting Tools
- * Returns model predictions alongside sportsbook odds
+ * Fetch pre-tournament predictions from DataGolf
+ * Returns model probabilities for win, top5, top10, top20, make_cut
  */
-export async function getOutrights(
+export async function getPreTournamentPredictions(
   tour: string = 'pga',
-  market: string = 'win',
-  oddsFormat: string = 'implied_prob'
-): Promise<DGOutrightResponse> {
+  model: 'baseline' | 'baseline_history_fit' = 'baseline_history_fit'
+): Promise<{ tournament: DGTournament; players: DGPlayerPrediction[] }> {
   const params = new URLSearchParams({
     tour,
-    market,
-    odds_format: oddsFormat,
-    file_format: 'json',
-    key: getApiKey(),
-  });
-
-  const res = await fetch(`${DG_BASE}/betting-tools/outrights?${params}`, {
-    next: { revalidate: 300 },
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`DataGolf outrights API error: ${res.status} - ${text}`);
-  }
-
-  return res.json();
-}
-
-/**
- * Fetch pre-tournament predictions
- */
-export async function getPreTournamentPredictions(tour: string = 'pga') {
-  const params = new URLSearchParams({
-    tour,
-    dead_heat: 'yes',
     odds_format: 'percent',
     file_format: 'json',
     key: getApiKey(),
   });
 
+  // Add dead heat adjustment for more accurate probs
+  params.set('dead_heat', 'yes');
+
   const res = await fetch(`${DG_BASE}/preds/pre-tournament?${params}`, {
-    next: { revalidate: 900 },
+    next: { revalidate: 900 }, // cache 15 min
   });
 
-  if (!res.ok) throw new Error(`DataGolf predictions API error: ${res.status}`);
-  return res.json();
+  if (!res.ok) {
+    throw new Error(`DataGolf API error: ${res.status} ${res.statusText}`);
+  }
+
+  const data = await res.json();
+
+  // DataGolf returns baseline and baseline+history models
+  // We use the specified model
+  const modelKey = model === 'baseline_history_fit' ? 'baseline_history_fit' : 'baseline';
+
+  const tournament: DGTournament = {
+    event_name: data.event_name || 'Unknown Event',
+    course: data.course || '',
+    start_date: data.event_start || '',
+    end_date: data.event_end || '',
+    tour: tour.toUpperCase(),
+  };
+
+  const players: DGPlayerPrediction[] = (data[modelKey] || data.baseline || []).map(
+    (p: Record<string, unknown>) => ({
+      dg_id: p.dg_id as number,
+      player_name: p.player_name as string,
+      country: p.country as string || '',
+      win: (p.win as number) || 0,
+      top_5: (p.top_5 as number) || 0,
+      top_10: (p.top_10 as number) || 0,
+      top_20: (p.top_20 as number) || 0,
+      make_cut: (p.make_cut as number) || 0,
+    })
+  );
+
+  return { tournament, players };
 }
 
 /**
- * Fetch live in-play predictions
+ * Fetch LIVE in-play predictions during an active tournament
+ * These update as the tournament progresses
  */
-export async function getLivePredictions(tour: string = 'pga') {
+export async function getLivePredictions(
+  tour: string = 'pga'
+): Promise<{ tournament: DGTournament; players: DGPlayerPrediction[]; is_live: boolean }> {
   const params = new URLSearchParams({
     tour,
     odds_format: 'percent',
@@ -87,30 +79,70 @@ export async function getLivePredictions(tour: string = 'pga') {
   });
 
   const res = await fetch(`${DG_BASE}/preds/in-play?${params}`, {
-    next: { revalidate: 120 },
+    next: { revalidate: 120 }, // cache 2 min during live
   });
 
   if (!res.ok) {
-    if (res.status === 404 || res.status === 400) return null;
-    throw new Error(`DataGolf live API error: ${res.status}`);
+    // If no live tournament, fall back to pre-tournament
+    if (res.status === 404 || res.status === 400) {
+      const preTourney = await getPreTournamentPredictions(tour);
+      return { ...preTourney, is_live: false };
+    }
+    throw new Error(`DataGolf Live API error: ${res.status}`);
   }
 
-  return res.json();
+  const data = await res.json();
+
+  const tournament: DGTournament = {
+    event_name: data.event_name || 'Unknown Event',
+    course: data.course || '',
+    start_date: '',
+    end_date: '',
+    tour: tour.toUpperCase(),
+  };
+
+  const players: DGPlayerPrediction[] = (data.data || []).map(
+    (p: Record<string, unknown>) => ({
+      dg_id: p.dg_id as number,
+      player_name: p.player_name as string,
+      country: p.country as string || '',
+      win: (p.win as number) || 0,
+      top_5: (p.top_5 as number) || 0,
+      top_10: (p.top_10 as number) || 0,
+      top_20: (p.top_20 as number) || 0,
+      make_cut: (p.make_cut as number) || 0,
+      current_pos: p.current_pos as number | undefined,
+      current_score: p.current_score as number | undefined,
+      thru: p.thru as number | undefined,
+      round: p.current_round as number | undefined,
+    })
+  );
+
+  return { tournament, players, is_live: true };
 }
 
 /**
- * Get list of sportsbooks DataGolf tracks
+ * Get the current tournament schedule to know what's active
  */
-export async function getTrackedBooks(tour: string = 'pga') {
-  const data = await getOutrights(tour, 'win', 'implied_prob');
-  return data.books || [];
-}
+export async function getCurrentTournament(tour: string = 'pga') {
+  const params = new URLSearchParams({
+    tour,
+    file_format: 'json',
+    key: getApiKey(),
+  });
 
-// Market type mapping for DG API
-export const DG_MARKET_MAP: Record<MarketType, string> = {
-  win: 'win',
-  top_5: 'top_5',
-  top_10: 'top_10',
-  top_20: 'top_20',
-  make_cut: 'make_cut',
-};
+  const res = await fetch(`${DG_BASE}/get-schedule?${params}`, {
+    next: { revalidate: 3600 },
+  });
+
+  if (!res.ok) return null;
+  const data = await res.json();
+
+  // Find current/next event
+  const now = new Date();
+  const upcoming = (data.schedule || []).find(
+    (e: Record<string, string>) => new Date(e.end_date) >= now
+  );
+
+  return upcoming || null;
+}

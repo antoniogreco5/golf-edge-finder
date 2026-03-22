@@ -14,8 +14,6 @@ export default function Dashboard() {
   const [bankroll, setBankroll] = useState(1000);
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
-
-  // Active filters (applied client-side after fetch)
   const [activeTierFilter, setActiveTierFilter] = useState<EdgeTier | 'all'>('all');
   const [activeMarketFilter, setActiveMarketFilter] = useState<MarketType | 'all'>('all');
 
@@ -27,28 +25,17 @@ export default function Dashboard() {
     setActiveMarketFilter(options.filterMarket);
 
     try {
-      const params = new URLSearchParams({
-        tour: options.tour,
-        live: String(options.live),
-      });
-
+      const params = new URLSearchParams({ tour: options.tour, live: String(options.live) });
       const res = await fetch(`/api/scan?${params}`);
       const data = await res.json();
-
-      if (!data.success) {
-        throw new Error(data.error || 'Scan failed');
-      }
-
+      if (!data.success) throw new Error(data.error || 'Scan failed');
       setScan(data.data);
       setLastRefresh(new Date().toISOString());
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Scan failed';
       setError(msg);
-
-      // If API fails (no keys yet), load demo data so UI is still usable
       if (msg.includes('API') || msg.includes('not set') || msg.includes('fetch')) {
-        const demo = getDemoScan();
-        setScan(demo);
+        setScan(getDemoScan());
         setIsDemo(true);
         setLastRefresh(new Date().toISOString());
         setError(null);
@@ -59,154 +46,230 @@ export default function Dashboard() {
   }, []);
 
   const loadDemo = useCallback(() => {
-    const demo = getDemoScan();
-    setScan(demo);
+    setScan(getDemoScan());
     setIsDemo(true);
     setLastRefresh(new Date().toISOString());
-    setError(null);
   }, []);
 
-  // Apply client-side filters
   const filteredEdges = scan?.edges.filter((e) => {
     const tierOrder: Record<EdgeTier | 'all', number> = { all: 99, strong: 0, playable: 1, monitor: 2, none: 3 };
-    const passesTier = activeTierFilter === 'all' || tierOrder[e.tier] <= tierOrder[activeTierFilter];
-    const passesMarket = activeMarketFilter === 'all' || e.market_type === activeMarketFilter;
-    return passesTier && passesMarket;
+    return (activeTierFilter === 'all' || tierOrder[e.tier] <= tierOrder[activeTierFilter])
+      && (activeMarketFilter === 'all' || e.market_type === activeMarketFilter);
   }) || [];
 
+  const strongEdges = filteredEdges.filter(e => e.tier === 'strong');
+  const playableEdges = filteredEdges.filter(e => e.tier === 'playable');
+  const monitorEdges = filteredEdges.filter(e => e.tier === 'monitor');
+
   return (
-    <main className="min-h-screen px-4 py-6 md:px-8 md:py-10 max-w-6xl mx-auto">
-      {/* Top Bar */}
-      <header className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-green-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-green-600/20">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+    <main className="min-h-screen">
+      {/* ─── HEADER ─── */}
+      <header className="px-5 md:px-10 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ background: 'var(--accent-green-muted)' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
             </svg>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-white tracking-tight leading-none">Golf Edge Finder</h1>
-            <p className="text-[11px] text-slate-500 tracking-wide">DataGolf Model vs Robinhood Markets</p>
+          <span className="text-sm font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+            Golf Edge Finder
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          {!scan && (
+            <button onClick={loadDemo} className="text-xs px-3 py-1.5 rounded-md transition-colors"
+              style={{ color: 'var(--text-muted)', border: '1px solid var(--border-default)' }}>
+              Preview Demo
+            </button>
+          )}
+          <div className="px-2.5 py-1 rounded-md text-xs font-medium"
+            style={{ background: 'var(--accent-green-muted)', color: 'var(--accent-green)' }}>
+            Beta
           </div>
         </div>
-
-        {!scan && (
-          <button
-            onClick={loadDemo}
-            className="text-xs text-slate-500 hover:text-slate-300 border border-white/10 rounded-lg px-3 py-1.5 transition-colors"
-          >
-            Load Demo Data
-          </button>
-        )}
       </header>
 
-      {/* Demo Banner */}
-      {isDemo && (
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
-          <span className="text-amber-400 text-lg leading-none mt-0.5">⚠</span>
-          <div>
-            <p className="text-sm text-amber-200 font-medium">Demo Mode</p>
-            <p className="text-xs text-amber-200/60 mt-0.5">
-              Showing sample data. Add your DATAGOLF_API_KEY to .env.local and ensure Kalshi markets are available to get live edges.
+      <div className="max-w-5xl mx-auto px-5 md:px-10 py-8">
+
+        {/* ─── HERO ─── */}
+        {!scan && !isLoading && (
+          <div className="animate-fade-in">
+            <div className="mb-10">
+              <h1 className="font-display text-3xl md:text-4xl mb-3" style={{ color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                Find where the model<br />disagrees with the market.
+              </h1>
+              <p className="text-base max-w-lg leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                Compare simulation-based probabilities against live sportsbook pricing across PGA, European, Korn Ferry, and LIV tours. Surface potential value with disciplined, data-driven edge detection.
+              </p>
+            </div>
+
+            {/* ─── HOW IT WORKS ─── */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+              {[
+                {
+                  step: '01',
+                  title: 'Model Probability',
+                  desc: 'DataGolf simulates each tournament 60,000 times using historical strokes-gained data, course fit, and player variance to produce finish probabilities.',
+                },
+                {
+                  step: '02',
+                  title: 'Market Pricing',
+                  desc: 'Implied probabilities are extracted from odds across 13 sportsbooks including Pinnacle, DraftKings, FanDuel, and bet365.',
+                },
+                {
+                  step: '03',
+                  title: 'Edge Detection',
+                  desc: 'When the model assigns a meaningfully higher probability than a sportsbook, that discrepancy is flagged and sized using the Kelly Criterion.',
+                },
+              ].map((item) => (
+                <div key={item.step} className="surface-card p-5">
+                  <div className="font-mono text-xs font-semibold mb-2" style={{ color: 'var(--accent-green)' }}>{item.step}</div>
+                  <div className="text-sm font-semibold mb-1.5" style={{ color: 'var(--text-primary)' }}>{item.title}</div>
+                  <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ─── DEMO BANNER ─── */}
+        {isDemo && (
+          <div className="rounded-lg px-4 py-3 mb-5 flex items-start gap-3 animate-fade-in"
+            style={{ background: 'var(--accent-amber-muted)', border: '1px solid rgba(251,191,36,0.15)' }}>
+            <span style={{ color: 'var(--accent-amber)' }} className="text-sm mt-0.5">&#9432;</span>
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'var(--accent-amber)' }}>Sample Data</p>
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(251,191,36,0.6)' }}>
+                Displaying illustrative data. Connect your DataGolf API key to scan live markets.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ─── ERROR ─── */}
+        {error && (
+          <div className="rounded-lg px-4 py-3 mb-5" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)' }}>
+            <p className="text-sm" style={{ color: 'var(--accent-red)' }}>{error}</p>
+          </div>
+        )}
+
+        {/* ─── CONTROLS ─── */}
+        <ControlsBar onScan={handleScan} isLoading={isLoading} bankroll={bankroll} onBankrollChange={setBankroll} />
+
+        {/* ─── STATS ─── */}
+        <StatsHeader scan={scan} isLoading={isLoading} lastRefresh={lastRefresh} />
+
+        {/* ─── RESULTS ─── */}
+        {filteredEdges.length > 0 && (
+          <div className="animate-fade-in delay-2">
+            {/* Results count */}
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+                Results
+              </span>
+              <span className="text-xs font-mono" style={{ color: 'var(--text-faint)' }}>
+                {filteredEdges.length} edge{filteredEdges.length !== 1 ? 's' : ''} found
+              </span>
+            </div>
+
+            {/* Strong section */}
+            {strongEdges.length > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full" style={{ background: 'var(--accent-green)' }} />
+                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-green)' }}>
+                    Strong ({strongEdges.length})
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {strongEdges.map((edge, i) => (
+                    <EdgeCard key={edge.id} edge={edge} index={i} bankroll={bankroll} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Playable section */}
+            {playableEdges.length > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full" style={{ background: 'var(--accent-amber)' }} />
+                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--accent-amber)' }}>
+                    Playable ({playableEdges.length})
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {playableEdges.map((edge, i) => (
+                    <EdgeCard key={edge.id} edge={edge} index={i} bankroll={bankroll} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Monitor section */}
+            {monitorEdges.length > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full" style={{ background: 'var(--text-faint)' }} />
+                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-faint)' }}>
+                    Monitor ({monitorEdges.length})
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {monitorEdges.map((edge, i) => (
+                    <EdgeCard key={edge.id} edge={edge} index={i} bankroll={bankroll} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─── NO RESULTS ─── */}
+        {scan && filteredEdges.length === 0 && !isLoading && (
+          <div className="text-center py-16 animate-fade-in">
+            <p className="font-display text-lg mb-1" style={{ color: 'var(--text-secondary)' }}>No edges match your filters</p>
+            <p className="text-sm" style={{ color: 'var(--text-faint)' }}>
+              {activeTierFilter !== 'all' || activeMarketFilter !== 'all'
+                ? 'Try broadening your tier or market selection.'
+                : 'Model and market probabilities are closely aligned for this event.'}
             </p>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Error Banner */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 mb-6">
-          <p className="text-sm text-red-300">{error}</p>
-        </div>
-      )}
-
-      {/* Controls */}
-      <ControlsBar
-        onScan={handleScan}
-        isLoading={isLoading}
-        bankroll={bankroll}
-        onBankrollChange={setBankroll}
-      />
-
-      {/* Stats */}
-      <StatsHeader scan={scan} isLoading={isLoading} lastRefresh={lastRefresh} />
-
-      {/* Edge Cards */}
-      {filteredEdges.length > 0 && (
-        <div className="space-y-3">
-          {/* Section Dividers */}
-          {filteredEdges.some(e => e.tier === 'strong') && (
-            <div className="flex items-center gap-3 pt-2 pb-1">
-              <span className="text-[10px] uppercase tracking-[0.2em] text-green-500 font-semibold">Strong Edges</span>
-              <div className="flex-1 h-px bg-green-500/10" />
+        {/* ─── METHODOLOGY ─── */}
+        {scan && filteredEdges.length > 0 && (
+          <div className="surface-card p-5 mt-8 animate-fade-in delay-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>
+              Methodology
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              <div>
+                <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Model source:</span> DataGolf&apos;s baseline + course history + course fit model. Probabilities are derived from 60,000 tournament simulations using strokes-gained regression, recency-weighted player performance, and course-specific variance adjustments.
+              </div>
+              <div>
+                <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Edge sizing:</span> Quarter-Kelly is the default to manage variance. Maximum 5% of bankroll on any single edge, 15% total across all concurrent positions. Only edges above configurable thresholds are surfaced.
+              </div>
+              <div>
+                <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Tracked books:</span> bet365, Betcris, BetOnline, BetMGM, Betway, Bovada, Caesars, DraftKings, FanDuel, Pinnacle, PointsBet, Unibet, Sky Bet. The largest edge per player per market is displayed.
+              </div>
+              <div>
+                <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Limitations:</span> Model probabilities are estimates, not certainties. Edges can exist due to model error, not just market inefficiency. This tool is for analytical comparison only and does not constitute financial advice.
+              </div>
             </div>
-          )}
-          {filteredEdges
-            .filter(e => e.tier === 'strong')
-            .map((edge, i) => (
-              <EdgeCard key={edge.id} edge={edge} index={i} bankroll={bankroll} />
-            ))
-          }
+          </div>
+        )}
+      </div>
 
-          {filteredEdges.some(e => e.tier === 'playable') && (
-            <div className="flex items-center gap-3 pt-4 pb-1">
-              <span className="text-[10px] uppercase tracking-[0.2em] text-yellow-500 font-semibold">Playable Edges</span>
-              <div className="flex-1 h-px bg-yellow-500/10" />
-            </div>
-          )}
-          {filteredEdges
-            .filter(e => e.tier === 'playable')
-            .map((edge, i) => (
-              <EdgeCard key={edge.id} edge={edge} index={i} bankroll={bankroll} />
-            ))
-          }
-
-          {filteredEdges.some(e => e.tier === 'monitor') && (
-            <div className="flex items-center gap-3 pt-4 pb-1">
-              <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-semibold">Monitor</span>
-              <div className="flex-1 h-px bg-slate-600/10" />
-            </div>
-          )}
-          {filteredEdges
-            .filter(e => e.tier === 'monitor')
-            .map((edge, i) => (
-              <EdgeCard key={edge.id} edge={edge} index={i} bankroll={bankroll} />
-            ))
-          }
-        </div>
-      )}
-
-      {/* Empty State */}
-      {scan && filteredEdges.length === 0 && !isLoading && (
-        <div className="text-center py-20">
-          <div className="text-4xl mb-3 opacity-30">⛳</div>
-          <p className="text-slate-400 font-display text-xl mb-1">No edges found</p>
-          <p className="text-slate-600 text-sm">
-            {activeTierFilter !== 'all' || activeMarketFilter !== 'all'
-              ? 'Try adjusting your filters'
-              : 'The model and market are aligned — check back during the tournament'
-            }
-          </p>
-        </div>
-      )}
-
-      {/* Initial Empty State */}
-      {!scan && !isLoading && !error && (
-        <div className="text-center py-20">
-          <div className="text-5xl mb-4 opacity-20">🏌️</div>
-          <p className="font-display text-2xl text-slate-400 mb-2">Ready to find edges</p>
-          <p className="text-slate-600 text-sm max-w-md mx-auto">
-            Hit &ldquo;Scan for Edges&rdquo; to compare DataGolf&apos;s model probabilities against Robinhood/Kalshi contract prices and surface actionable discrepancies.
-          </p>
-        </div>
-      )}
-
-      {/* Footer */}
-      <footer className="mt-16 pb-8 text-center">
-        <div className="text-[10px] text-slate-700 space-y-1">
-          <p>Model data via DataGolf • Market data via Kalshi Exchange</p>
-          <p>Edge calculations are informational only. Trade responsibly.</p>
+      {/* ─── FOOTER ─── */}
+      <footer className="px-5 md:px-10 py-6 mt-8" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
+          <div className="text-xs" style={{ color: 'var(--text-faint)' }}>
+            Golf Edge Finder &middot; Model data via DataGolf &middot; Market data via sportsbook feeds
+          </div>
+          <div className="text-xs" style={{ color: 'var(--text-faint)' }}>
+            For informational and analytical purposes only. Not financial advice.
+          </div>
         </div>
       </footer>
     </main>

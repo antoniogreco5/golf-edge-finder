@@ -2,17 +2,15 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Golf Edge Finder | DG Model vs Prediction Markets',
-  description: 'Find discrepancies between DataGolf model probabilities and Robinhood/Kalshi prediction market prices.',
+  title: 'Golf Edge Finder — Model vs. Market Analytics',
+  description: 'Compare predictive model probabilities against live sportsbook pricing to identify value in golf betting markets.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="noise-overlay min-h-screen">
-        <div className="relative z-10">
-          {children}
-        </div>
+      <body className="min-h-screen">
+        {children}
       </body>
     </html>
   );

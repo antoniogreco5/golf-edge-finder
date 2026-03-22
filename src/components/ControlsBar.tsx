@@ -3,13 +3,6 @@
 import { useState } from 'react';
 import { MarketType, EdgeTier } from '@/types';
 
-interface ControlsBarProps {
-  onScan: (options: ScanOptions) => void;
-  isLoading: boolean;
-  bankroll: number;
-  onBankrollChange: (v: number) => void;
-}
-
 export interface ScanOptions {
   tour: string;
   live: boolean;
@@ -17,71 +10,76 @@ export interface ScanOptions {
   filterMarket: MarketType | 'all';
 }
 
+interface ControlsBarProps {
+  onScan: (options: ScanOptions) => void;
+  isLoading: boolean;
+  bankroll: number;
+  onBankrollChange: (v: number) => void;
+}
+
 export default function ControlsBar({ onScan, isLoading, bankroll, onBankrollChange }: ControlsBarProps) {
   const [tour, setTour] = useState('pga');
-  const [live, setLive] = useState(true);
   const [filterTier, setFilterTier] = useState<EdgeTier | 'all'>('all');
   const [filterMarket, setFilterMarket] = useState<MarketType | 'all'>('all');
 
   const handleScan = () => {
-    onScan({ tour, live, filterTier, filterMarket });
+    onScan({ tour, live: false, filterTier, filterMarket });
   };
 
   return (
-    <div className="bg-black/30 border border-white/5 rounded-xl p-4 mb-6">
-      <div className="flex flex-wrap items-end gap-3">
-        {/* Tour Select */}
-        <div className="flex-shrink-0">
-          <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1.5">Tour</label>
+    <div className="surface-card p-5 mb-6">
+      {/* Section label */}
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-xs font-medium tracking-wide uppercase" style={{ color: 'var(--text-muted)' }}>
+          Scan Configuration
+        </span>
+        <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
+          Data via DataGolf + 13 sportsbooks
+        </span>
+      </div>
+
+      {/* Controls grid */}
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+        {/* Tour */}
+        <div>
+          <label className="block text-xs mb-1.5 font-medium" style={{ color: 'var(--text-secondary)' }}>Tour</label>
           <select
             value={tour}
             onChange={(e) => setTour(e.target.value)}
-            className="bg-slate-800/80 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500/40 font-mono"
+            className="w-full rounded-lg px-3 py-2 text-sm font-mono transition-colors"
+            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
           >
             <option value="pga">PGA Tour</option>
-            <option value="euro">European Tour</option>
+            <option value="euro">DP World Tour</option>
             <option value="kft">Korn Ferry</option>
             <option value="alt">LIV Golf</option>
           </select>
         </div>
 
-        {/* Live Toggle */}
-        <div className="flex-shrink-0">
-          <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1.5">Mode</label>
-          <button
-            onClick={() => setLive(!live)}
-            className={`px-3 py-2 rounded-lg text-sm font-mono border transition-all ${
-              live
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                : 'bg-slate-800/80 border-white/10 text-slate-400'
-            }`}
-          >
-            {live ? '⚡ Live' : '📋 Pre-Tourney'}
-          </button>
-        </div>
-
-        {/* Tier Filter */}
-        <div className="flex-shrink-0">
-          <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1.5">Min Tier</label>
+        {/* Min Tier */}
+        <div>
+          <label className="block text-xs mb-1.5 font-medium" style={{ color: 'var(--text-secondary)' }}>Min. Tier</label>
           <select
             value={filterTier}
             onChange={(e) => setFilterTier(e.target.value as EdgeTier | 'all')}
-            className="bg-slate-800/80 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500/40 font-mono"
+            className="w-full rounded-lg px-3 py-2 text-sm font-mono transition-colors"
+            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
           >
-            <option value="all">All</option>
+            <option value="all">All Tiers</option>
             <option value="strong">Strong Only</option>
             <option value="playable">Playable+</option>
             <option value="monitor">Monitor+</option>
           </select>
         </div>
 
-        {/* Market Type Filter */}
-        <div className="flex-shrink-0">
-          <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1.5">Market</label>
+        {/* Market */}
+        <div>
+          <label className="block text-xs mb-1.5 font-medium" style={{ color: 'var(--text-secondary)' }}>Market</label>
           <select
             value={filterMarket}
             onChange={(e) => setFilterMarket(e.target.value as MarketType | 'all')}
-            className="bg-slate-800/80 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500/40 font-mono"
+            className="w-full rounded-lg px-3 py-2 text-sm font-mono transition-colors"
+            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
           >
             <option value="all">All Markets</option>
             <option value="win">Outright Win</option>
@@ -93,48 +91,54 @@ export default function ControlsBar({ onScan, isLoading, bankroll, onBankrollCha
         </div>
 
         {/* Bankroll */}
-        <div className="flex-shrink-0">
-          <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1.5">Bankroll</label>
+        <div>
+          <label className="block text-xs mb-1.5 font-medium" style={{ color: 'var(--text-secondary)' }}>Bankroll</label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--text-muted)' }}>$</span>
             <input
               type="number"
               value={bankroll}
               onChange={(e) => onBankrollChange(Number(e.target.value) || 0)}
-              className="bg-slate-800/80 border border-white/10 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-green-500/40 font-mono w-28"
+              className="w-full rounded-lg pl-7 pr-3 py-2 text-sm font-mono transition-colors"
+              style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
               min={0}
               step={100}
             />
           </div>
         </div>
 
-        {/* Scan Button */}
-        <div className="flex-shrink-0 ml-auto">
+        {/* Scan Button - spans 2 cols on mobile */}
+        <div className="col-span-2 flex items-end">
           <button
             onClick={handleScan}
             disabled={isLoading}
-            className={`
-              px-6 py-2.5 rounded-lg text-sm font-semibold tracking-wide transition-all
-              ${isLoading
-                ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                : 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-600/20 hover:shadow-green-500/30'
-              }
-            `}
+            className="w-full py-2.5 rounded-lg text-sm font-semibold tracking-wide transition-all"
+            style={{
+              background: isLoading ? 'var(--bg-elevated)' : 'var(--accent-green)',
+              color: isLoading ? 'var(--text-muted)' : '#0a0f14',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              opacity: isLoading ? 0.6 : 1,
+            }}
           >
             {isLoading ? (
-              <span className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Scanning...
+                Scanning Markets...
               </span>
             ) : (
-              'Scan for Edges'
+              'Run Edge Scan'
             )}
           </button>
         </div>
       </div>
+
+      {/* Microcopy */}
+      <p className="text-xs leading-relaxed" style={{ color: 'var(--text-faint)' }}>
+        Compares DataGolf&apos;s simulation model against implied probabilities from 13 tracked sportsbooks. Edges represent discrepancies where the model assigns higher probability than market pricing.
+      </p>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import { TournamentEdgeScan } from '@/types';
-import { motion } from 'framer-motion';
 
 interface StatsHeaderProps {
   scan: TournamentEdgeScan | null;
@@ -10,110 +9,75 @@ interface StatsHeaderProps {
 }
 
 export default function StatsHeader({ scan, isLoading, lastRefresh }: StatsHeaderProps) {
-  if (!scan && !isLoading) {
-    return (
-      <div className="text-center py-16">
-        <div className="font-display text-3xl text-slate-400 mb-2">No Scan Data</div>
-        <p className="text-sm text-slate-500">Run a scan to find edges</p>
-      </div>
-    );
-  }
+  if (!scan && !isLoading) return null;
+
+  const stats = [
+    {
+      label: 'Strong',
+      value: scan?.strong_count || 0,
+      color: 'var(--accent-green)',
+      bg: 'var(--accent-green-muted)',
+    },
+    {
+      label: 'Playable',
+      value: scan?.playable_count || 0,
+      color: 'var(--accent-amber)',
+      bg: 'var(--accent-amber-muted)',
+    },
+    {
+      label: 'Actionable',
+      value: scan?.edges.length || 0,
+      color: 'var(--text-primary)',
+      bg: 'rgba(255,255,255,0.04)',
+    },
+    {
+      label: 'Scanned',
+      value: scan?.total_scanned || 0,
+      color: 'var(--text-secondary)',
+      bg: 'rgba(255,255,255,0.03)',
+    },
+  ];
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="mb-8"
-    >
-      {/* Tournament Header */}
-      <div className="flex items-end justify-between mb-6">
+    <div className="mb-6 animate-fade-in">
+      {/* Tournament name and metadata */}
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+              Current Event
+            </span>
             {scan?.is_live && (
-              <span className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-widest font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-live" />
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
+                style={{ background: 'var(--accent-green-muted)', color: 'var(--accent-green)' }}>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{ background: 'var(--accent-green)' }} />
                 Live
               </span>
             )}
-            <span className="text-[11px] uppercase tracking-widest text-slate-500">
-              {scan?.model_type === 'baseline_history_fit' ? 'DG Baseline + Course Fit' : 'DG Baseline'}
-            </span>
           </div>
-          <h1 className="font-display text-2xl md:text-3xl text-white tracking-tight">
-            {scan?.tournament || 'Loading...'}
-          </h1>
-          {scan?.course && (
-            <p className="text-sm text-slate-400 mt-0.5">{scan.course}</p>
-          )}
+          <h2 className="font-display text-xl md:text-2xl" style={{ color: 'var(--text-primary)' }}>
+            {isLoading ? <span className="skeleton inline-block w-48 h-7" /> : scan?.tournament}
+          </h2>
         </div>
-
         {lastRefresh && (
-          <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wider text-slate-600">Last Scan</div>
-            <div className="text-xs text-slate-400 font-mono">
-              {new Date(lastRefresh).toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                timeZoneName: 'short',
-              })}
-            </div>
+          <div className="text-xs font-mono" style={{ color: 'var(--text-faint)' }}>
+            Last scan: {new Date(lastRefresh).toLocaleTimeString('en-US', {
+              hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+            })}
           </div>
         )}
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard
-          label="Strong Edges"
-          value={isLoading ? '—' : String(scan?.strong_count || 0)}
-          accent="green"
-          isLoading={isLoading}
-        />
-        <StatCard
-          label="Playable Edges"
-          value={isLoading ? '—' : String(scan?.playable_count || 0)}
-          accent="yellow"
-          isLoading={isLoading}
-        />
-        <StatCard
-          label="Total Scanned"
-          value={isLoading ? '—' : String(scan?.total_scanned || 0)}
-          accent="slate"
-          isLoading={isLoading}
-        />
-        <StatCard
-          label="Actionable"
-          value={isLoading ? '—' : String(scan?.edges.length || 0)}
-          accent="slate"
-          isLoading={isLoading}
-        />
-      </div>
-    </motion.div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  accent,
-  isLoading,
-}: {
-  label: string;
-  value: string;
-  accent: 'green' | 'yellow' | 'slate';
-  isLoading: boolean;
-}) {
-  const accentColors = {
-    green: 'border-green-500/20 text-green-400',
-    yellow: 'border-yellow-500/20 text-yellow-400',
-    slate: 'border-slate-600/20 text-slate-300',
-  };
-
-  return (
-    <div className={`bg-black/20 border ${accentColors[accent].split(' ')[0]} rounded-xl p-4`}>
-      <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">{label}</div>
-      <div className={`font-mono text-2xl font-bold ${isLoading ? 'animate-pulse text-slate-600' : accentColors[accent].split(' ').slice(1).join(' ')}`}>
-        {value}
+      {/* Stats row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {stats.map((s) => (
+          <div key={s.label} className="rounded-lg px-4 py-3" style={{ background: s.bg }}>
+            <div className="text-xs font-medium mb-0.5" style={{ color: 'var(--text-muted)' }}>{s.label}</div>
+            <div className="font-mono text-xl font-semibold" style={{ color: isLoading ? 'var(--text-faint)' : s.color }}>
+              {isLoading ? '—' : s.value}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
