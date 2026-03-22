@@ -1,103 +1,68 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getPreTournamentPredictions } from '@/lib/datagolf';
-import { getGolfEvents, getEventMarkets } from '@/lib/kalshi';
+import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
+const DG = 'https://feeds.datagolf.com';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
+  const key = process.env.DATAGOLF_API_KEY;
+  if (!key) return NextResponse.json({ error: 'No key' });
+
+  const markets = ['win','top_5','top_10','top_20','make_cut','top5','top10','top20','make cut'];
   const results: Record<string, unknown> = {};
 
-  // 1. Test DataGolf
-  try {
-    const dg = await getPreTournamentPredictions('pga');
-    results.datagolf = {
-      success: true,
-      tournament: dg.tournament.event_name,
-      player_count: dg.players.length,
-      sample_players: dg.players.slice(0, 5).map(p => ({
-        name: p.player_name,
-        win: p.win,
-        top_5: p.top_5,
-        top_10: p.top_10,
-        top_20: p.top_20,
-      })),
-    };
-  } catch (err) {
-    results.datagolf = {
-      success: false,
-      error: err instanceof Error ? err.message : 'Unknown error',
-    };
-  }
-
-  // 2. Test Kalshi - get ALL open events first
-  try {
-    const res = await fetch(
-      'https://api.elections.kalshi.com/trade-api/v2/events?status=open&limit=200',
-      { headers: { 'Accept': 'application/json' } }
-    );
-    const data = await res.json();
-    const allEvents = data.events || [];
-
-    // Find anything golf-related
-    const golfKeywords = ['golf', 'pga', 'masters', 'open championship', 'valspar', 'arnold palmer', 'players championship', 'lpga', 'liv golf'];
-    const golfEvents = allEvents.filter((e: Record<string, unknown>) => {
-      const title = ((e.title as string) || '').toLowerCase();
-      const category = ((e.category as string) || '').toLowerCase();
-      return golfKeywords.some(kw => title.includes(kw) || category.includes(kw));
-    });
-
-    // Also show all unique categories so we can see what's available
-    const categories = [...new Set(allEvents.map((e: Record<string, unknown>) => e.category))];
-
-    // Show any sports events
-    const sportsEvents = allEvents.filter((e: Record<string, unknown>) => {
-      const category = ((e.category as string) || '').toLowerCase();
-      return category.includes('sport') || category.includes('golf') || category.includes('basketball') || category.includes('baseball');
-    });
-
-    results.kalshi = {
-      success: true,
-      total_events: allEvents.length,
-      categories: categories,
-      golf_events_found: golfEvents.length,
-      golf_events: golfEvents.slice(0, 10).map((e: Record<string, unknown>) => ({
-        ticker: e.event_ticker,
-        title: e.title,
-        category: e.category,
-        market_count: Array.isArray(e.markets) ? e.markets.length : 'nested not loaded',
-      })),
-      sports_events_sample: sportsEvents.slice(0, 10).map((e: Record<string, unknown>) => ({
-        ticker: e.event_ticker,
-        title: e.title,
-        category: e.category,
-      })),
-    };
-
-    // 3. If we found golf events, try loading their markets
-    if (golfEvents.length > 0) {
-      const firstEvent = golfEvents[0] as Record<string, unknown>;
-      const ticker = firstEvent.event_ticker as string;
-      const markets = await getEventMarkets(ticker);
-      results.kalshi_golf_markets = {
-        event: ticker,
-        market_count: markets.length,
-        sample_markets: markets.slice(0, 10).map(m => ({
-          ticker: m.ticker,
-          title: m.title,
-          subtitle: m.subtitle,
-          yes_bid: m.yes_bid,
-          yes_ask: m.yes_ask,
-          last_price: m.last_price,
-          volume: m.volume,
-        })),
-      };
+  for (const m of markets) {
+    try {
+      const res = await fetch(
+        `${DG}/betting-tools/outrights?tour=pga&market=${encodeURIComponent(m)}&odds_format=percent&file_format=json&key=${key}`
+      );
+      const raw = await res.text();
+      if (res.ok) {
+        const data = JSON.parse(raw);
+        const odds = data.odds || [];
+        // Count edges where model > any book
+        let edgeCount = 0;
+        let maxEdge = 0;
+        let maxEdgePlayer = '';
+        if (Array.isArray(odds)) {
+          for (const p of odds) {
+            const dg = p.datagolf?.baseline_history_fit || 0;
+            if (!dg) continue;
+            const books = (data.books_offering || []) as string[];
+            for (const b of books) {
+              const bk = p[b];
+              if (!bk || bk <= 0) continue;
+              const edge = (dg - bk) * 100;
+              if (edge > 0) {
+                edgeCount++;
+                if (edge > maxEdge) {
+                  maxEdge = edge;
+                  maxEdgePlayer = p.player_name;
+                }
+              }
+            }
+          }
+        }
+        results[m] = {
+          status: res.status,
+          players: Array.isArray(odds) ? odds.length : 0,
+          edge_count: edgeCount,
+          max_edge_pts: Math.round(maxEdge * 100) / 100,
+          max_edge_player: maxEdgePlayer,
+          sample_player: Array.isArray(odds) && odds[0] ? {
+            name: odds[0].player_name,
+            model: odds[0].datagolf?.baseline_history_fit,
+            pinnacle: odds[0].pinnacle,
+            draftkings: odds[0].draftkings,
+            fanduel: odds[0].fanduel,
+          } : null,
+        };
+      } else {
+        results[m] = { status: res.status, error: raw.substring(0, 200) };
+      }
+    } catch (err) {
+      results[m] = { error: err instanceof Error ? err.message : 'fail' };
     }
-  } catch (err) {
-    results.kalshi = {
-      success: false,
-      error: err instanceof Error ? err.message : 'Unknown error',
-    };
   }
 
-  return NextResponse.json(results, { status: 200 });
+  return NextResponse.json(results);
 }
