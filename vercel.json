@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/notify?tour=pga",
+      "schedule": "*/15 8-20 * * 4-7"
+    }
+  ]
+}
