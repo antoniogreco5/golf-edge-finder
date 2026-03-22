@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/notify?tour=pga",
-      "schedule": "*/15 8-20 * * 4-7"
+      "schedule": "*/15 8-20 * * 4,5,6,0"
     }
   ]
 }
