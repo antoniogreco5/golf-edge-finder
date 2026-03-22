@@ -41,7 +41,7 @@ export default function ControlsBar({ onScan, isLoading, bankroll, onBankrollCha
             <option value="pga">PGA Tour</option>
             <option value="euro">European Tour</option>
             <option value="kft">Korn Ferry</option>
-            <option value="liv">LIV Golf</option>
+            <option value="alt">LIV Golf</option>
           </select>
         </div>
 
